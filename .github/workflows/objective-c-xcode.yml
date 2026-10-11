@@ -1,0 +1,60 @@
+
+name: EaseCalculator - Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS app
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          xcodebuild -version
+          xcodebuild -list \
+            -project EaseCalculator.xcodeproj
+
+      - name: Build for iPhone
+        run: |
+          xcodebuild \
+            -project EaseCalculator.xcodeproj \
+            -scheme EaseCalculator \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        run: |
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/EaseCalculator.app"
+
+          if [ ! -d "$APP" ]; then
+            echo "EaseCalculator.app not found"
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/package/Payload/"
+
+          cd "$RUNNER_TEMP/package"
+          zip -qr "$GITHUB_WORKSPACE/EaseCalculator.ipa" Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EaseCalculator-unsigned-IPA
+          path: EaseCalculator.ipa
+          if-no-files-found: error
+          retention-days: 7
